@@ -1,14 +1,10 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: ====================================================
-:: Define PowerShell paths
-:: ====================================================
 set "PS5_PATH=%systemdrive%\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
 set "PS7_PATH=%ProgramFiles%\PowerShell\7\pwsh.exe"
 set "PS7_PREVIEW_PATH=%ProgramFiles%\PowerShell\7-preview\pwsh.exe"
 
-:: Find best PowerShell for admin elevation
 set "ELEVATION_PS="
 if exist "%PS7_PREVIEW_PATH%" (
     set "ELEVATION_PS=%PS7_PREVIEW_PATH%"
@@ -22,9 +18,6 @@ if exist "%PS7_PREVIEW_PATH%" (
     exit /b 1
 )
 
-:: ====================================================
-:: Launch with admin rights
-:: ====================================================
 if "%1"=="admin" goto :AdminMode
 
 echo [INFO] Launch with admin rights...
@@ -35,142 +28,54 @@ exit /B
 pushd "%CD%"
 CD /D "%~dp0"
 
-:: ====================================================
-:: Office Privacy and Telemetry Disabler Launcher
-:: ====================================================
-
 title Office Privacy and Telemetry Disabler Launcher
-
-:: Set script directory
 set "SCRIPT_DIR=%~dp0"
-
-:: Initialize variables
 set "PS_EXE="
-set "PS_SCRIPT="
 set "PS_VERSION="
-set "SCRIPT_TYPE="
-
-:: ====================================================
-:: Find PowerShell Executable (пріоритет: Preview > 7 > 5)
-:: ====================================================
 
 if exist "%PS7_PREVIEW_PATH%" (
     set "PS_EXE=%PS7_PREVIEW_PATH%"
     set "PS_VERSION=PowerShell 7 Preview"
-    set "PS_MAJOR=7"
-    goto :found_powershell
-)
-
-if exist "%PS7_PATH%" (
+) else if exist "%PS7_PATH%" (
     set "PS_EXE=%PS7_PATH%"
     set "PS_VERSION=PowerShell 7"
-    set "PS_MAJOR=7"
-    goto :found_powershell
-)
-
-if exist "%PS5_PATH%" (
+) else if exist "%PS5_PATH%" (
     set "PS_EXE=%PS5_PATH%"
     set "PS_VERSION=PowerShell 5"
-    set "PS_MAJOR=5"
-    goto :found_powershell
-)
-
-echo [ERROR] No compatible PowerShell version found!
-echo.
-echo Please install either:
-echo  - PowerShell 7 Preview (recommended)
-echo  - PowerShell 7 
-echo  - PowerShell 5 (Windows PowerShell)
-echo.
-pause
-exit /b 1
-
-:found_powershell
-
-:: ====================================================
-:: Detect Windows Version
-:: ====================================================
-for /f "tokens=4-5 delims=. " %%i in ('ver') do (
-    set "WIN_MAJOR=%%i"
-    set "WIN_MINOR=%%j"
-)
-
-:: ====================================================
-:: Choose Script Based on Windows Version AND PowerShell Version
-:: ====================================================
-if !WIN_MAJOR! GEQ 10 (
-    if !PS_MAJOR!==5 (
-        set "SCRIPT_BASENAME=office_privacy_telemetry_disabler_win7+.ps1"
-        set "SCRIPT_TYPE=Windows 10/11 with PowerShell 5"
-    ) else (
-        set "SCRIPT_BASENAME=office_privacy_telemetry_disabler.ps1"
-        set "SCRIPT_TYPE=Windows 10/11 with PowerShell 7"
-    )
 ) else (
-    set "SCRIPT_BASENAME=office_privacy_telemetry_disabler_win7+.ps1"
-    set "SCRIPT_TYPE=Windows 7/8/8.1"
+    echo [ERROR] No compatible PowerShell version found!
+    pause
+    exit /b 1
 )
 
-:: ====================================================
-:: Locate Script
-:: ====================================================
-set "SCRIPT_FOUND="
-
-set "TEST_SCRIPT=%SCRIPT_DIR%!SCRIPT_BASENAME!"
-if exist "!TEST_SCRIPT!" (
-    set "PS_SCRIPT=!TEST_SCRIPT!"
-    set "SCRIPT_FOUND=YES"
-    goto :script_found
+set "PS_SCRIPT=%SCRIPT_DIR%script\office_privacy_telemetry_disabler.ps1"
+if not exist "%PS_SCRIPT%" (
+    set "PS_SCRIPT=%SCRIPT_DIR%office_privacy_telemetry_disabler.ps1"
 )
-
-set "TEST_SCRIPT=%SCRIPT_DIR%script\!SCRIPT_BASENAME!"
-if exist "!TEST_SCRIPT!" (
-    set "PS_SCRIPT=!TEST_SCRIPT!"
-    set "SCRIPT_FOUND=YES"
-    set "SCRIPT_TYPE=!SCRIPT_TYPE! (from script folder)"
-    goto :script_found
+if not exist "%PS_SCRIPT%" (
+    echo [ERROR] office_privacy_telemetry_disabler.ps1 not found!
+    echo Place it in the same folder as this launcher or in the script subfolder.
+    pause
+    exit /b 1
 )
-
-echo [ERROR] Expected script !SCRIPT_BASENAME! not found!
-echo.
-echo Please make sure this script exists:
-echo  - !SCRIPT_BASENAME!
-echo Either in the same folder as this launcher or in the 'script' subfolder.
-echo.
-pause
-exit /b 1
-
-:script_found
-
-:: ====================================================
-:: Display Information
-:: ====================================================
 
 echo.
 echo ====================================================
 echo    Office Privacy and Telemetry Disabler Launcher
-echo.
-echo                 by EXLOUD aka BOBER
-echo              https://github.com/EXLOUD
+echo                Office 16.0 baseline
 echo ====================================================
 echo.
 echo System Information:
 echo  - PowerShell: %PS_VERSION%
-echo  - Script: !SCRIPT_TYPE!
-echo  - Location: !PS_SCRIPT!
+echo  - Script: !PS_SCRIPT!
 echo.
-echo This will disable telemetry and privacy features for:
-echo  - Microsoft Office 2010-2024
-echo  - Office logging and telemetry
-echo  - Customer Experience Improvement Program
-echo  - Connected Experiences
-echo  - Automatic updates and notifications
-echo  - Scheduled telemetry tasks
+echo Default behavior:
+echo  - Apply Office 16.0 telemetry/privacy baseline
+echo  - Update-disabling options remain OFF unless you opt in
 echo.
 
 :confirmation
 set /p "CONFIRM=Do you want to continue? (Y/N): "
-
 if /i "!CONFIRM!"=="y" goto :proceed
 if /i "!CONFIRM!"=="yes" goto :proceed
 if /i "!CONFIRM!"=="n" goto :cancel
@@ -187,29 +92,17 @@ exit /b 0
 
 :proceed
 cls
-
 echo.
 echo [INFO] Launching Office Privacy Disabler...
 echo [INFO] PowerShell: %PS_VERSION%
-echo [INFO] Script: !SCRIPT_TYPE!
-echo.
-echo [WARNING] Administrator rights may be required for some registry changes.
 echo.
 
 cd /d "%SCRIPT_DIR%"
-
 "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((Get-Content -Raw -LiteralPath '!PS_SCRIPT!')))"
 
-if %errorLevel% == 0 (
-    echo.
-) else (
+if %errorLevel% neq 0 (
     echo.
     echo [ERROR] Script encountered errors. Exit code: %errorLevel%
-    echo.
-    echo This may happen if:
-    echo  - Office is not installed
-    echo  - Administrator rights are required
-    echo  - Registry access is restricted
 )
 
 echo.

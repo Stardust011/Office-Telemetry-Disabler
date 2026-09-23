@@ -1,209 +1,104 @@
-<div align="center">
+# Office Privacy and Telemetry Disabler (Office 16.0)
 
-### 👇
+PowerShell tool for Office **16.0** telemetry/privacy hardening (Office 2016/2019/2021/2024/Microsoft 365 family).
 
-[![Download My Script](https://img.shields.io/badge/Download_This_Script-darkgreen?style=for-the-badge&logo=powershell&logoColor=white)](https://github.com/EXLOUD/Office-Telemetry-Disabler/archive/refs/heads/main.zip)
+## What changed
 
----
+- The repository now targets **Office 16.0 only**.
+- `OC2R_DisableTelemetry.reg` is provided as the baseline profile.
+- Update-disabling behavior is split into **optional prompts** and is **off by default**.
+- A backup/restore flow is included. Restore only reverts values/tasks/hosts entries recorded by this tool backup.
 
-# Office Privacy and Telemetry Disabler
+## Files
 
-### 👀 Repository Views
+- `script/office_privacy_telemetry_disabler.ps1` – main script (Office 16.0 only)
+- `OC2R_DisableTelemetry.reg` – baseline registry profile (UTF-16 LE, `.reg`)
+- `Launcher.bat` – elevated launcher
 
-<img alt="count" src="https://count.getloli.com/get/@:EXLOUD-Office-Telemetry-Disable?theme=rule34" />
+## Default behavior (no optional selections)
 
-**⭐ If this tool helped you, please consider giving it a star! ⭐**
+The script applies Office telemetry/privacy settings aligned with `OC2R_DisableTelemetry.reg`, including:
 
----
+- Client telemetry / CEIP / feedback related keys
+- Privacy + online content policy keys
+- OSM/PTWatson/logging related keys
+- Click-to-Run privacy keys (if Click-to-Run exists)
 
-<img src="assets/preview.gif" alt="Office Privacy and Telemetry Disabler Logo" width="600" height="400">
+By default, it **does not**:
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![PowerShell](https://img.shields.io/badge/PowerShell-5%2B-blue.svg)
-![Windows](https://img.shields.io/badge/Windows-7%2F8%2F10%2F11-blue.svg)
-![Office](https://img.shields.io/badge/Office-2010--2024-orange.svg)
+- disable Office updates
+- disable Office update tasks
+- modify update policy values (`UpdatesEnabled`, `EnableAutomaticUpdates`, etc.)
 
-A comprehensive PowerShell script to disable Microsoft Office logging, telemetry, and privacy features across all Office versions (2010-2024) and Windows versions (7-11).
+## Optional actions (default OFF)
 
-</div>
+When prompted, you can optionally enable:
 
-## 🚀 Features
+1. **Disable Office updates and update-related tasks**
+   - Sets update-related registry values
+   - Disables update-related scheduled tasks
+2. **Hosts blocking**
+   - Adds telemetry domains to hosts
 
-- **Multi-version support**: Works with Office 2010, 2013, 2016, 2019, 2021, and 2024
-- **Cross-Windows compatibility**: Supports Windows 7, 8, 10, and 11
-- **Automatic version detection**: Launcher automatically detects Windows version and runs appropriate script
-- **Comprehensive privacy protection**: Disables logging, telemetry, and data collection
-- **Scheduled task management**: Disables Office telemetry and update tasks
-- **Hosts file blocking**: Optional blocking of Microsoft telemetry servers
-- **User-friendly interface**: Colored output with clear status indicators
-- **Safe execution**: Backup creation and error handling
+If you do not opt in, those actions are skipped.
 
-## 📋 What it disables
+## Restore / rollback
 
-### Office Logging & Telemetry
-- Microsoft Office application logging
-- Client telemetry collection
-- Verbose logging features
-- OSM (Office Service Manager) logging and uploads
+Each run creates a backup JSON in `script/backup/`.
 
-### Privacy Features
-- Customer Experience Improvement Program (CEIP)
-- Feedback collection
-- Connected Experiences (Office 2016+)
-- Online content downloads
-- Watson error reporting
+Restore command:
 
-### Scheduled Tasks
-- Office telemetry agents
-- Subscription heartbeat tasks
-- Background task handlers
-- Automatic update tasks
+```powershell
+.\script\office_privacy_telemetry_disabler.ps1 -Restore
+```
 
-### Network Communication
-- Blocks telemetry hosts via hosts file (optional)
-- Disables automatic updates
-- Prevents data uploads to Microsoft servers
+Or restore a specific backup:
 
-## 🛠️ Installation & Usage
+```powershell
+.\script\office_privacy_telemetry_disabler.ps1 -Restore -BackupPath "C:\path\to\office_telemetry_backup_YYYYMMDD_HHMMSS.json"
+```
 
-### Method 1: Using the Launcher (Recommended)
-1. Download the launcher (`Launcher.bat`) and both PowerShell scripts:
-   - `office_privacy_telemetry_disabler.ps1` (for Windows 10/11)
-   - `office_privacy_telemetry_disabler_win7+.ps1` (for Windows 7/8/10/11)
-2. Place all files in the same directory
-3. Right-click on `Launcher.bat` and select "Run as administrator"
-4. The launcher will automatically detect your Windows version and run the appropriate script
-5. Follow the on-screen prompts
+Restore logic is symmetric to tracked changes only:
 
-### Method 2: Direct PowerShell Execution
-1. Download the appropriate PowerShell script for your Windows version:
-   - For Windows 10/11: `office_privacy_telemetry_disabler.ps1`
-   - For Windows 7/8/10/11: `office_privacy_telemetry_disabler_win7+.ps1`
-2. Open PowerShell as Administrator
-3. Run: `Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process`
-4. Execute the downloaded script: `.\office_privacy_telemetry_disabler.ps1` or `.\office_privacy_telemetry_disabler_win7+.ps1`
+- restore previous registry values (or remove values created by this tool)
+- re-enable only tasks this tool disabled from enabled state
+- restore hosts file from backup if this tool modified hosts
 
-## 🎯 Supported Versions
+## Requirements
 
+- Windows with Administrator privileges
+- PowerShell 5.1+ or PowerShell 7+
+- Office 16.0 family
 
-### Office Versions
-| Version | Year | Status |
-|---------|------|--------|
-| 14.0 | Office 2010 | ✅ Supported |
-| 15.0 | Office 2013 | ✅ Supported |
-| 16.0 | Office 2016/365/2019/2021/2024 | ✅ Supported |
+## Usage
 
+### Option 1: Launcher
 
-### Windows Versions
+Run `Launcher.bat` as Administrator.
 
-| Version | Status | Script Used |
-|---------|--------|-------------|
-| Windows 7 | ✅ Supported | `office_privacy_telemetry_disabler_win7+.ps1` |
-| Windows 8/8.1 | ✅ Supported | `office_privacy_telemetry_disabler_win7+.ps1` |
-| Windows 10 | ✅ Supported | `office_privacy_telemetry_disabler.ps1` but you can run both |
-| Windows 11 | ✅ Supported | `office_privacy_telemetry_disabler.ps1` but you can run both |
+### Option 2: PowerShell directly
 
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
+.\script\office_privacy_telemetry_disabler.ps1
+```
 
-## 🔧 Requirements
+## Baseline `.reg` import (optional)
 
-- **Operating System**: Windows 7, 8, 10, or 11
-- **PowerShell**: Version 5.1 or higher
-- **Privileges**: Administrator rights required for registry and scheduled task modifications
-- **Office**: Any version from 2010 to 2024
+`OC2R_DisableTelemetry.reg` uses standard `.reg` format and UTF-16 LE encoding.
 
-## 🤖 Automatic Version Detection
+Manual import example:
 
-The `Launcher.bat` includes intelligent Windows version detection:
-- Automatically identifies your Windows version
-- Selects the most compatible PowerShell script
-- Ensures optimal performance across all Windows versions
-- Provides fallback options for maximum compatibility
+```cmd
+reg import OC2R_DisableTelemetry.reg
+```
 
-## 📸 Screenshots
+## Notes
 
-### Main Interface
-The script provides a clean, colored interface showing:
-- Windows and Office version detection
-- Registry modifications
-- Scheduled task management
-- Progress indicators
+- Restart Office apps after applying changes.
+- Always create your own system/registry backup before running system-modifying scripts.
+- This project reduces configured Office telemetry/privacy exposure but does **not** claim to completely block all Microsoft data collection in every environment.
 
-### Output Legend
-- ✅ **Green**: Successfully completed actions
-- 🔄 **Magenta**: Settings changed
-- ℹ️ **Blue**: Information messages
-- ⚠️ **Yellow**: Warnings
-- ❌ **Red**: Errors
-- ➡️ **Gray**: Items not found/skipped
+## License
 
-## 🛡️ Safety Features
-
-- **Backup creation**: Automatic backup of hosts file before modification
-- **Error handling**: Comprehensive error catching and reporting
-- **Registry validation**: Checks for existing registry paths before modification
-- **Reversible changes**: Most changes can be reversed manually if needed
-- **Non-destructive**: Only modifies privacy-related settings
-- **Version-specific optimization**: Different scripts optimized for different Windows versions
-
-## 🚨 Important Notes
-
-1. **Administrator Rights**: Required for modifying system registry and scheduled tasks
-2. **Office Restart**: Some changes require restarting Office applications
-3. **Windows Defender**: The script temporarily adds hosts file to exclusions
-4. **Backup**: Always backup your system before running system modification scripts
-5. **Version Compatibility**: Use the launcher for automatic version detection and optimal compatibility
-
-## 🔄 What happens after running?
-
-After successful execution:
-- Office telemetry and logging are disabled
-- Privacy-invasive features are turned off
-- Scheduled telemetry tasks are disabled
-- (Optional) Telemetry hosts are blocked
-- Office applications may need to be restarted
-- Changes are optimized for your specific Windows version
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
-
-### Development
-- The script uses PowerShell with colored output
-- Registry modifications use proper error handling
-- Scheduled task management includes comprehensive logging
-- Code is modular and well-documented
-- Version-specific optimizations for different Windows versions
-
-## 📜 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## ⚠️ Disclaimer
-
-This script modifies Windows registry and system settings. While designed to be safe, use at your own risk. Always backup your system before running. The authors are not responsible for any damage or data loss.
-
-## 🙏 Acknowledgments
-
-- Microsoft for providing comprehensive Office documentation
-- PowerShell community for best practices
-- Privacy advocates for highlighting the importance of telemetry control
-
-## 📞 Support
-
-If you encounter any issues:
-1. Check the [Issues](../../issues) section
-2. Ensure you're running as Administrator
-3. Verify your Office version is supported
-4. Check your Windows version compatibility
-5. Use the launcher for automatic version detection
-6. Check the console output for specific error messages
-
----
-
-<div align="center">
-
-**Made with ❤️ by [EXLOUD](https://github.com/EXLOUD)**
-
-*Protecting your privacy across all Windows versions, one script at a time.*
-
-</div>
+MIT
