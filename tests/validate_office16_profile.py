@@ -21,9 +21,14 @@ class ValidateOffice16Profile(unittest.TestCase):
         self.assertNotIn('15.0', SCRIPT)
 
     def test_update_disable_is_optional_and_default_off(self):
+        self.assertIn('[switch]$DisableOfficeUpdates', SCRIPT)
         self.assertRegex(SCRIPT, r"disableUpdatesAnswer\s*=\s*Read-Host")
         self.assertRegex(SCRIPT, r"\$disableUpdates\s*=\s*\$disableUpdatesAnswer\s*-match\s*'\^\[Yy\]\$'")
         self.assertIn('if ($disableUpdates)', SCRIPT)
+
+    def test_skip_hosts_parameter_and_safer_domain_list(self):
+        self.assertIn('[switch]$SkipHosts', SCRIPT)
+        self.assertNotIn('officeclient.microsoft.com', SCRIPT)
 
     def test_baseline_reg_entries_exist_in_script(self):
         key = None

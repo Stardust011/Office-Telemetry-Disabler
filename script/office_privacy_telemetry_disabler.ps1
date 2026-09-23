@@ -6,9 +6,13 @@ Office Privacy and Telemetry Disabler (Office 16.0 baseline)
 - Supports restore from backup created by this script
 #>
 
+[CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [switch]$Restore,
-    [string]$BackupPath
+    [string]$BackupPath,
+    [switch]$DisableOfficeUpdates,
+    [switch]$SkipHosts,
+    [string]$LogPath
 )
 
 $Colors = @{
@@ -108,10 +112,7 @@ $TelemetryDomains = @(
     'telecommand.telemetry.microsoft.com',
     'oca.telemetry.microsoft.com',
     'sqm.telemetry.microsoft.com',
-    'watson.telemetry.microsoft.com',
-    'diagnostics.office.com',
-    'officeclient.microsoft.com',
-    'wer.microsoft.com'
+    'watson.telemetry.microsoft.com'
 )
 
 function Test-Admin {
@@ -134,6 +135,20 @@ function Convert-RegistryKindToType {
         'QWord' { 'QWord' }
         'MultiString' { 'MultiString' }
         default { 'String' }
+    }
+
+    function Get-RegistryKindFromType {
+        param([string]$Type)
+
+        switch ($Type) {
+            'String' { 'String' }
+            'ExpandString' { 'ExpandString' }
+            'Binary' { 'Binary' }
+            'DWord' { 'DWord' }
+            'QWord' { 'QWord' }
+            'MultiString' { 'MultiString' }
+            default { 'String' }
+        }
     }
 }
 
@@ -204,12 +219,17 @@ function Set-RegistryValueWithBackup {
         }
 
         $state = Get-RegistryState -Path $path -Name $name
-        if ($state.Existed -and $state.Value -eq $value) {
+        $targetKind = Get-RegistryKindFromType -Type $type
+        if ($state.Existed -and $state.Kind -eq $targetKind -and $state.Value -eq $value) {
             Write-Host "  [SKIP] Already set: $name -> $value" -ForegroundColor $Colors.Skip
             return
         }
 
         Add-RegistryBackupRecord -Backup $Backup -Path $path -Name $name -Type $type -NewValue $value -Description $Setting.Description
+        if (-not $PSCmdlet.ShouldProcess("$path\$name", "Set registry value to $value ($type)")) {
+            Write-Host "  [SKIP] WhatIf/ShouldProcess skipped: $path\$name" -ForegroundColor $Colors.Skip
+            return
+        }
         Set-ItemProperty -Path $path -Name $name -Type $type -Value $value -Force -ErrorAction Stop
 
         Write-Host "  [OK] Changed: $name -> $value" -ForegroundColor $Colors.Success
@@ -264,6 +284,11 @@ function Disable-TaskWithBackup {
     }
 
     $taskPath = "\$($Task.Name)"
+    if (-not $PSCmdlet.ShouldProcess($Task.Name, 'Disable scheduled task')) {
+        Write-Host "  [SKIP] WhatIf/ShouldProcess skipped: $($Task.Name)" -ForegroundColor $Colors.Skip
+        return
+    }
+
     & schtasks.exe /Change /TN $taskPath /DISABLE 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) {
         $Backup.Tasks += @{ Name = $Task.Name; PreviousEnabled = $true; Description = $Task.Description }
@@ -323,11 +348,19 @@ function Restore-FromBackup {
                     New-Item -Path $record.Path -Force | Out-Null
                 }
                 $restoreType = if ($record.Kind) { Convert-RegistryKindToType -Kind $record.Kind } else { 'String' }
+                if (-not $PSCmdlet.ShouldProcess("$($record.Path)\$($record.Name)", 'Restore registry value from backup')) {
+                    Write-Host "  [SKIP] WhatIf/ShouldProcess skipped: $($record.Path)\$($record.Name)" -ForegroundColor $Colors.Skip
+                    continue
+                }
                 Set-ItemProperty -Path $record.Path -Name $record.Name -Type $restoreType -Value $record.Value -Force -ErrorAction Stop
                 Write-Host "  [OK] Restored value: $($record.Path)\$($record.Name)" -ForegroundColor $Colors.Success
             }
             else {
                 if (Test-Path $record.Path) {
+                    if (-not $PSCmdlet.ShouldProcess("$($record.Path)\$($record.Name)", 'Remove registry value created by script')) {
+                        Write-Host "  [SKIP] WhatIf/ShouldProcess skipped: $($record.Path)\$($record.Name)" -ForegroundColor $Colors.Skip
+                        continue
+                    }
                     Remove-ItemProperty -Path $record.Path -Name $record.Name -ErrorAction SilentlyContinue
                     Write-Host "  [OK] Removed value created by script: $($record.Path)\$($record.Name)" -ForegroundColor $Colors.Success
                 }
@@ -344,6 +377,11 @@ function Restore-FromBackup {
         }
 
         $taskPath = "\$($task.Name)"
+        if (-not $PSCmdlet.ShouldProcess($task.Name, 'Re-enable scheduled task from backup')) {
+            Write-Host "  [SKIP] WhatIf/ShouldProcess skipped: $($task.Name)" -ForegroundColor $Colors.Skip
+            continue
+        }
+
         & schtasks.exe /Change /TN $taskPath /ENABLE 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-Host "  [OK] Re-enabled task: $($task.Name)" -ForegroundColor $Colors.Success
@@ -352,6 +390,10 @@ function Restore-FromBackup {
 
     if ($backup.Hosts -and $backup.Hosts.Applied -and $backup.Hosts.BackupFile -and (Test-Path $backup.Hosts.BackupFile)) {
         try {
+            if (-not $PSCmdlet.ShouldProcess($backup.Hosts.HostsFile, "Restore hosts file from backup $($backup.Hosts.BackupFile)")) {
+                Write-Host "  [SKIP] WhatIf/ShouldProcess skipped hosts restore." -ForegroundColor $Colors.Skip
+                return
+            }
             Copy-Item -Path $backup.Hosts.BackupFile -Destination $backup.Hosts.HostsFile -Force -ErrorAction Stop
             Write-Host "  [OK] Restored hosts file from backup" -ForegroundColor $Colors.Success
         }
@@ -370,6 +412,11 @@ function Apply-HostsBlocking {
     $backupFile = "$hostsFile.backup.$(Get-Date -Format 'yyyyMMdd_HHmmss')"
 
     try {
+        if (-not $PSCmdlet.ShouldProcess($hostsFile, 'Add telemetry domain blocking entries')) {
+            Write-Host "  [SKIP] WhatIf/ShouldProcess skipped hosts modification." -ForegroundColor $Colors.Skip
+            return
+        }
+
         Copy-Item -Path $hostsFile -Destination $backupFile -Force -ErrorAction Stop
 
         $hostsContent = Get-Content -Path $hostsFile -Raw -ErrorAction SilentlyContinue
@@ -399,6 +446,7 @@ function Apply-HostsBlocking {
 }
 
 Write-Host "--- Office Privacy and Telemetry Disabler (Office 16.0) ---" -ForegroundColor $Colors.Title
+$transcriptStarted = $false
 
 if (-not (Test-Admin)) {
     Write-Host "[ERROR] Administrator privileges are required." -ForegroundColor $Colors.Error
@@ -406,10 +454,33 @@ if (-not (Test-Admin)) {
     exit 1
 }
 
+if ($LogPath) {
+    try {
+        Start-Transcript -Path $LogPath -Append -ErrorAction Stop | Out-Null
+        Write-Host "[INFO] Logging enabled: $LogPath" -ForegroundColor $Colors.Info
+        $transcriptStarted = $true
+    }
+    catch {
+        Write-Host "[WARN] Failed to start transcript logging: $($_.Exception.Message)" -ForegroundColor $Colors.Warning
+    }
+}
+
 if ($Restore) {
     Restore-FromBackup -InputBackupPath $BackupPath
+    if ($transcriptStarted) {
+        Stop-Transcript | Out-Null
+    }
     Read-Host 'Press Enter to exit'
     exit 0
+}
+
+Write-Host "[INFO] HKCU settings apply to the current user context running this script." -ForegroundColor $Colors.Warning
+Write-Host "[INFO] In domain-managed environments, Group Policy may override local settings (check gpresult /r)." -ForegroundColor $Colors.Warning
+
+$officeRunning = Get-Process WINWORD, EXCEL, POWERPNT, OUTLOOK -ErrorAction SilentlyContinue
+if ($officeRunning) {
+    $runningNames = ($officeRunning | Select-Object -ExpandProperty ProcessName -Unique) -join ', '
+    Write-Host "[WARN] Office processes detected: $runningNames. Close Office apps before applying for best reliability." -ForegroundColor $Colors.Warning
 }
 
 $hasClickToRun = Test-Path 'HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration'
@@ -439,8 +510,14 @@ else {
     Write-Host "`n[SKIP] Click-to-Run not detected. Skipping Click-to-Run privacy keys." -ForegroundColor $Colors.Skip
 }
 
-$disableUpdatesAnswer = Read-Host "`nOptional: disable Office updates and update-related tasks? (y/N)"
-$disableUpdates = $disableUpdatesAnswer -match '^[Yy]$'
+$disableUpdates = $false
+if ($DisableOfficeUpdates) {
+    $disableUpdates = $true
+}
+else {
+    $disableUpdatesAnswer = Read-Host "`nOptional: disable Office updates and update-related tasks? (y/N)"
+    $disableUpdates = $disableUpdatesAnswer -match '^[Yy]$'
+}
 if ($disableUpdates) {
     Write-Host "`n--- Applying optional update disable settings ---" -ForegroundColor $Colors.Section
     foreach ($setting in $OptionalUpdateRegistrySettings) {
@@ -458,8 +535,16 @@ else {
     Write-Host "[SKIP] Optional update disable settings were not selected." -ForegroundColor $Colors.Skip
 }
 
-$hostsAnswer = Read-Host "`nOptional: block telemetry domains in hosts file? (y/N)"
-if ($hostsAnswer -match '^[Yy]$') {
+$applyHostsBlocking = $false
+if ($SkipHosts) {
+    Write-Host "[SKIP] Hosts blocking skipped by parameter." -ForegroundColor $Colors.Skip
+}
+else {
+    $hostsAnswer = Read-Host "`nOptional: block telemetry domains in hosts file? (y/N)"
+    $applyHostsBlocking = $hostsAnswer -match '^[Yy]$'
+}
+
+if ($applyHostsBlocking) {
     Write-Host "`n--- Applying optional hosts blocking ---" -ForegroundColor $Colors.Section
     Apply-HostsBlocking -Backup $backup
 }
@@ -473,8 +558,12 @@ Write-Host "`n--- Summary ---" -ForegroundColor $Colors.Section
 Write-Host "  > Office target version: $OfficeVersion" -ForegroundColor $Colors.Info
 Write-Host "  > Click-to-Run detected: $hasClickToRun" -ForegroundColor $Colors.Info
 Write-Host "  > Optional update disable selected: $disableUpdates" -ForegroundColor $Colors.Info
-Write-Host "  > Optional hosts blocking selected: $($hostsAnswer -match '^[Yy]$')" -ForegroundColor $Colors.Info
+Write-Host "  > Optional hosts blocking selected: $applyHostsBlocking" -ForegroundColor $Colors.Info
 Write-Host "  > Backup file: $backupFile" -ForegroundColor $Colors.Info
 Write-Host "`n[OK] Completed." -ForegroundColor $Colors.Success
+
+if ($transcriptStarted) {
+    Stop-Transcript | Out-Null
+}
 
 Read-Host 'Press Enter to exit'

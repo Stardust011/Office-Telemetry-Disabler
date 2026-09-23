@@ -42,6 +42,14 @@ When prompted, you can optionally enable:
 
 If you do not opt in, those actions are skipped.
 
+## Parameters
+
+- `-DisableOfficeUpdates`: non-interactive opt-in to disable update policy keys and update tasks.
+- `-SkipHosts`: skip hosts modification without prompt.
+- `-Restore [-BackupPath <file>]`: restore from latest/specified backup.
+- `-LogPath <file>`: enable transcript logging.
+- `-WhatIf`: preview changes without applying them (`SupportsShouldProcess`).
+
 ## Restore / rollback
 
 Each run creates a backup JSON in `script/backup/`.
@@ -83,6 +91,12 @@ Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 .\script\office_privacy_telemetry_disabler.ps1
 ```
 
+Example with switches:
+
+```powershell
+.\script\office_privacy_telemetry_disabler.ps1 -DisableOfficeUpdates -SkipHosts -LogPath .\run.log
+```
+
 ## Baseline `.reg` import (optional)
 
 `OC2R_DisableTelemetry.reg` uses standard `.reg` format and UTF-16 LE encoding.
@@ -96,6 +110,9 @@ reg import OC2R_DisableTelemetry.reg
 ## Notes
 
 - Restart Office apps after applying changes.
+- HKCU keys apply to the user context running the script (elevated credentials may target a different profile).
+- In domain-managed environments, Group Policy may override local settings (`gpresult /r`).
+- Hosts blocking list is intentionally conservative and excludes activation/update/login endpoint domains.
 - Always create your own system/registry backup before running system-modifying scripts.
 - This project reduces configured Office telemetry/privacy exposure but does **not** claim to completely block all Microsoft data collection in every environment.
 
