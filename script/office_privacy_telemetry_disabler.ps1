@@ -226,7 +226,7 @@ function Set-RegistryValueWithBackup {
 function Get-TaskEnabledState {
     param([string]$TaskName)
 
-    $taskPath = $TaskName -replace 'Microsoft\\', '\\'
+    $taskPath = "\$TaskName"
     $xmlResult = & schtasks.exe /Query /TN $taskPath /XML 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $xmlResult) {
         return $null
@@ -263,7 +263,7 @@ function Disable-TaskWithBackup {
         return
     }
 
-    $taskPath = $Task.Name -replace 'Microsoft\\', '\\'
+    $taskPath = "\$($Task.Name)"
     & schtasks.exe /Change /TN $taskPath /DISABLE 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) {
         $Backup.Tasks += @{ Name = $Task.Name; PreviousEnabled = $true; Description = $Task.Description }
@@ -343,7 +343,7 @@ function Restore-FromBackup {
             continue
         }
 
-        $taskPath = $task.Name -replace 'Microsoft\\', '\\'
+        $taskPath = "\$($task.Name)"
         & schtasks.exe /Change /TN $taskPath /ENABLE 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-Host "  [OK] Re-enabled task: $($task.Name)" -ForegroundColor $Colors.Success
