@@ -18,3 +18,7 @@ $RECYCLE.BIN/
 # Backup files
 *.bak
 hosts.backup*
+
+# Python
+__pycache__/
+*.py[cod]
